@@ -46,7 +46,7 @@ class Media(Document):
     langs = fields.ListField(fields.StrField(), allow_none=True)
 
     class Meta:
-        indexes = ("$file_name",)
+        indexes = ("$file_name", "langs")
         collection_name = COLLECTION_NAME
 
 
@@ -64,7 +64,7 @@ class Media2(Document):
 
 
     class Meta:
-        indexes = ("$file_name",)
+        indexes = ("$file_name", "langs")
         collection_name = COLLECTION_NAME
 
 
@@ -170,19 +170,37 @@ async def get_search_results(chat_id, query, file_type=None, max_results=None, o
         query = query.strip()
         if not query:
             return [], None, 0
-            
+        lang_map = {"hindi": "hi", "english": "en", "tamil": "ta", "telugu": "te", "malayalam": "ml", "kannada": "kn"}
+        found_lang_key = next((l for l in lang_map if l in query.lower()), None)    
         # This is the key change for balancing speed and flexibility
         if ' ' in query:
-            # If user searches for a language, tell MongoDB to check the 'langs' field
-            lang_map = ["hindi", "english", "tamil", "telugu", "malayalam", "kannada"]
-            found_lang = next((l for l in lang_map if l in query.lower()), None)
-            if found_lang:
-                clean_query = query.lower().replace(found_lang, "").strip()
-                regex = re.compile(clean_query, flags=re.IGNORECASE)
-                filter_mongo = {
-                    "file_name": regex, 
-                    "$or": [{"langs": found_lang[:2]}, {"file_name": re.compile(found_lang, re.IGNORECASE)}]
-                }
+            words = [re.escape(word) for word in query.split()]
+            raw_pattern = r'.*'.join(words)
+        else:
+            raw_pattern = r"\b" + re.escape(query) + r"\b"
+
+        try:
+            regex = re.compile(raw_pattern, flags=re.IGNORECASE)
+        except re.error:
+            return [], None, 0
+
+        # Building the smart filter
+        if found_lang_key:
+            # If user typed "Deadpool Hindi", we look for "Deadpool" and the language "hi"
+            clean_name = query.lower().replace(found_lang_key, "").strip()
+            name_regex = re.compile(clean_name, flags=re.IGNORECASE)
+            filter_mongo = {
+                "file_name": name_regex,
+                "$or": [
+                    {"langs": lang_map[found_lang_key]}, 
+                    {"file_name": re.compile(found_lang_key, re.IGNORECASE)}
+                ]
+            }
+        else:
+            if USE_CAPTION_FILTER:
+                filter_mongo = {"$or": [{"file_name": regex}, {"caption": regex}]}
+            else:
+                filter_mongo = {"file_name": regex}
             # For multi-word queries, allow spaces, dots, or hyphens between words.
             words = [re.escape(word) for word in query.split()]
             raw_pattern = r'.*'.join(words)
