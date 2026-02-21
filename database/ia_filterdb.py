@@ -43,6 +43,7 @@ class Media(Document):
     mime_type = fields.StrField(allow_none=True)
     caption = fields.StrField(allow_none=True)
     cover = fields.StrField(allow_none=True)
+    langs = fields.ListField(fields.StrField(), allow_none=True)
 
     class Meta:
         indexes = ("$file_name",)
@@ -59,6 +60,7 @@ class Media2(Document):
     mime_type = fields.StrField(allow_none=True)
     caption = fields.StrField(allow_none=True)
     cover = fields.StrField(allow_none=True)
+    langs = fields.ListField(fields.StrField(), allow_none=True)
 
 
     class Meta:
@@ -266,7 +268,10 @@ async def get_bad_files(query, file_type=None):
     total_results = len(files)
     return files, total_results
 
-
+async def update_file_langs(file_id, languages):
+    await Media.collection.update_one({"_id": file_id}, {"$set": {"langs": languages}})
+    if MULTIPLE_DB:
+        await Media2.collection.update_one({"_id": file_id}, {"$set": {"langs": languages}})
 async def get_file_details(query):
     filter = {"file_id": query}
     
