@@ -173,6 +173,16 @@ async def get_search_results(chat_id, query, file_type=None, max_results=None, o
             
         # This is the key change for balancing speed and flexibility
         if ' ' in query:
+            # If user searches for a language, tell MongoDB to check the 'langs' field
+            lang_map = ["hindi", "english", "tamil", "telugu", "malayalam", "kannada"]
+            found_lang = next((l for l in lang_map if l in query.lower()), None)
+            if found_lang:
+                clean_query = query.lower().replace(found_lang, "").strip()
+                regex = re.compile(clean_query, flags=re.IGNORECASE)
+                filter_mongo = {
+                    "file_name": regex, 
+                    "$or": [{"langs": found_lang[:2]}, {"file_name": re.compile(found_lang, re.IGNORECASE)}]
+                }
             # For multi-word queries, allow spaces, dots, or hyphens between words.
             words = [re.escape(word) for word in query.split()]
             raw_pattern = r'.*'.join(words)
