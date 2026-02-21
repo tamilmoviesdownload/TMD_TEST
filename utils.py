@@ -16,6 +16,8 @@ from database.users_chats_db import db
 from bs4 import BeautifulSoup
 import requests
 from shortzy import Shortzy
+from pymediainfo import MediaInfo
+import os
 
 from plugins.Dreamxfutures.Imdbposter import get_movie_detailsx
 
@@ -937,7 +939,27 @@ async def get_cap(settings, remaining_seconds, files, query, total_results, sear
                             f"{clean_filename(file.file_name)}\n\n"
                             f"</a></b>"
                         )
+
+        
         return cap
     except Exception as e:
         logging.error(f"Error in get_cap: {e}")
         pass
+
+async def get_languages_on_demand(client, log_msg):
+    tmp_file = f"header_{log_msg.id}.mkv"
+    try:
+        # Downloads only 5MB to see the audio tracks
+        path = await client.download_media(message=log_msg, file_name=tmp_file, limit=5)
+        media_info = MediaInfo.parse(path)
+        languages = []
+        for track in media_info.tracks:
+            if track.track_type == "Audio":
+                l = track.to_data().get('language') or track.to_data().get('other_language', [None])[0]
+                if l: languages.append(l.lower())
+        return list(set(languages))
+    except:
+        return []
+    finally:
+        if os.path.exists(tmp_file):
+            os.remove(tmp_file)
