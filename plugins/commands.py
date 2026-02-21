@@ -415,6 +415,22 @@ async def start(client, message):
         return await message.reply('ɴᴏ ꜱᴜᴄʜ ꜰɪʟᴇ ᴇxɪꜱᴛꜱ !')
     
     files = files_[0]
+    file_id = files.file_id
+    detected_langs = getattr(files, 'langs', None)
+
+    if not detected_langs:
+        try:
+            # Bot fetches the audio info now because it's not in DB
+            log_msg = await client.get_messages(BIN_CHANNEL, files.file_id)
+            detected_langs = await get_languages_on_demand(client, log_msg)
+            if detected_langs:
+                from database.ia_filterdb import update_file_langs
+                await update_file_langs(files.file_id, detected_langs)
+        except:
+            detected_langs = []
+    
+    # Format languages for the caption
+    lang_label = " | ".join([x.upper() for x in detected_langs]) if detected_langs else "NOT EXTRACTED"
     title = clean_filename(files.file_name)
     size = get_size(files.file_size)
     cover = files.cover if files.cover else None
@@ -429,7 +445,7 @@ async def start(client, message):
             f_caption = f_caption
 
     if f_caption is None:
-        f_caption = clean_filename(files.file_name)
+        f_caption = f"<b>{clean_filename(files.file_name)}</b>\n\n🔊 Audio: <code>{lang_label}</code>"
     btn = await stream_buttons(message.from_user.id, file_id)
     msg = await client.send_cached_media(
         chat_id=message.from_user.id,
