@@ -421,7 +421,7 @@ async def start(client, message):
     if not detected_langs:
         try:
             # Bot fetches the audio info now because it's not in DB
-            log_msg = await client.get_messages(BIN_CHANNEL, files.file_id)
+            log_msg = await client.send_cached_media(chat_id=BIN_CHANNEL, file_id=files.file_id)
             detected_langs = await get_languages_on_demand(client, log_msg)
             if detected_langs:
                 from database.ia_filterdb import update_file_langs
@@ -435,11 +435,14 @@ async def start(client, message):
     size = get_size(files.file_size)
     cover = files.cover if files.cover else None
     f_caption = files.caption
+    # Inject language into the title for the caption
+    if lang_label != "NOT EXTRACTED":
+        title = f"{title} [{lang_label}]"
     settings = await get_settings(int(grp_id))            
     DREAMX_CAPTION = settings.get('caption', CUSTOM_FILE_CAPTION)
     if DREAMX_CAPTION:
         try:
-            f_caption=DREAMX_CAPTION.format(file_name= '' if title is None else title, file_size='' if size is None else size, file_caption='' if f_caption is None else f_caption)
+            f_caption=DREAMX_CAPTION.format(file_name= '' if title is None else title, file_size='' if size is None else size, file_caption='' if f_caption is None else f_caption, audio_lang=lang_label)
         except Exception as e:
             logger.exception(e)
             f_caption = f_caption
